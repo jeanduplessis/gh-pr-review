@@ -44,6 +44,44 @@ query($owner: String!, $repo: String!, $number: Int!, $reviewsCursor: String, $t
                 id
               }
             }
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+    }
+  }
+}
+`;
+
+/**
+ * Query to fetch additional comment pages for a specific review thread.
+ * Used by the `view` command when a thread has >100 comments.
+ *
+ * Variables: $threadId, $cursor
+ */
+export const THREAD_COMMENTS_QUERY = `
+query($threadId: ID!, $cursor: String!) {
+  node(id: $threadId) {
+    ... on PullRequestReviewThread {
+      comments(first: 100, after: $cursor) {
+        nodes {
+          id
+          body
+          author {
+            login
+          }
+          createdAt
+          path
+          line
+          pullRequestReview {
+            id
           }
         }
         pageInfo {

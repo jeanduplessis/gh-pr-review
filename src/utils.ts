@@ -1,4 +1,10 @@
+import { execFileSync } from "child_process";
 import type { PRIdentifier, ReviewState } from "./types";
+
+/** Check if a string looks like a CLI flag (--word or -X). */
+function looksLikeFlag(arg: string): boolean {
+  return /^--[a-zA-Z]/.test(arg) || /^-[a-zA-Z]$/.test(arg);
+}
 
 /**
  * Parse a GitHub PR URL into owner, repo, and PR number.
@@ -38,7 +44,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
       if (eqIndex !== -1) {
         // --flag=value
         flags[arg.slice(2, eqIndex)] = arg.slice(eqIndex + 1);
-      } else if (i + 1 < argv.length && !argv[i + 1].startsWith("-")) {
+      } else if (i + 1 < argv.length && !looksLikeFlag(argv[i + 1])) {
         // --flag value
         flags[arg.slice(2)] = argv[i + 1];
         i++;
@@ -48,7 +54,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
       }
     } else if (arg.startsWith("-") && arg.length === 2) {
       // -f value
-      if (i + 1 < argv.length && !argv[i + 1].startsWith("-")) {
+      if (i + 1 < argv.length && !looksLikeFlag(argv[i + 1])) {
         flags[arg.slice(1)] = argv[i + 1];
         i++;
       } else {
@@ -62,6 +68,17 @@ export function parseArgs(argv: string[]): ParsedArgs {
   }
 
   return { flags, positional };
+}
+
+/**
+ * Parse and validate a PR number string, returning a positive integer.
+ */
+function parsePRNumber(value: string): number {
+  const n = parseInt(value, 10);
+  if (isNaN(n) || n <= 0) {
+    throw new Error(`Invalid PR number: ${value}. Must be a positive integer`);
+  }
+  return n;
 }
 
 /**
@@ -84,14 +101,15 @@ export function resolvePR(args: ParsedArgs): PRIdentifier {
     if (parts.length !== 2) {
       throw new Error(`Invalid repository format: ${repoFlag}. Expected owner/repo`);
     }
-    return { owner: parts[0], repo: parts[1], number: parseInt(prFlag, 10) };
+    return { owner: parts[0], repo: parts[1], number: parsePRNumber(prFlag) };
   }
 
   if (prFlag && !repoFlag) {
+    const prNumber = parsePRNumber(prFlag);
     // Try to infer repo from git remote
     const repo = inferRepo();
     if (repo) {
-      return { owner: repo.owner, repo: repo.repo, number: parseInt(prFlag, 10) };
+      return { owner: repo.owner, repo: repo.repo, number: prNumber };
     }
     throw new Error("Cannot determine repository. Use -R owner/repo or provide a PR URL");
   }
@@ -104,7 +122,6 @@ export function resolvePR(args: ParsedArgs): PRIdentifier {
  */
 function inferRepo(): { owner: string; repo: string } | null {
   try {
-    const { execFileSync } = require("child_process");
     const output = execFileSync("gh", ["repo", "view", "--json", "owner,name", "-q", ".owner.login + \"/\" + .name"], {
       encoding: "utf-8",
       timeout: 5000,

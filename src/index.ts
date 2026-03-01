@@ -1,9 +1,9 @@
-import { parseArgs, exitWithError } from "./utils";
-import { viewCommand } from "./commands/view";
 import { replyCommand } from "./commands/reply";
-import { threadsCommand } from "./commands/threads";
 import { resolveCommand } from "./commands/resolve";
+import { threadsCommand } from "./commands/threads";
 import { unresolveCommand } from "./commands/unresolve";
+import { viewCommand } from "./commands/view";
+import { exitWithError, parseArgs } from "./utils";
 
 const VERSION = "0.1.0";
 
@@ -35,17 +35,19 @@ Examples:
 const rawArgs = process.argv.slice(2);
 const args = parseArgs(rawArgs);
 
-if (args.flags["help"] || args.flags["h"]) {
+const command = args.positional[0];
+
+// Only handle -h/-v as global help/version when no subcommand is present.
+// This avoids conflicts like `gh pr-review view -v` triggering --version.
+if (args.flags["help"] || (!command && args.flags["h"])) {
   console.log(HELP_TEXT);
   process.exit(0);
 }
 
-if (args.flags["version"] || args.flags["v"]) {
+if (args.flags["version"] || (!command && args.flags["v"])) {
   console.log(VERSION);
   process.exit(0);
 }
-
-const command = args.positional[0];
 
 if (!command) {
   exitWithError("No command specified. Run with --help for usage.");

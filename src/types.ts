@@ -33,6 +33,7 @@ export interface GQLReviewThread {
   line: number | null;
   comments: {
     nodes: GQLReviewComment[];
+    pageInfo?: GQLPageInfo;
   };
 }
 
@@ -113,29 +114,4 @@ export interface PRIdentifier {
   owner: string;
   repo: string;
   number: number;
-}
-
-export interface ViewOptions {
-  pr: PRIdentifier;
-  reviewer?: string;
-  states?: ReviewState[];
-  unresolved?: boolean;
-  notOutdated?: boolean;
-  tail?: number;
-}
-
-export interface ReplyOptions {
-  pr: PRIdentifier;
-  threadId: string;
-  body: string;
-}
-
-export interface ThreadsOptions {
-  pr: PRIdentifier;
-  unresolved?: boolean;
-}
-
-export interface ResolveOptions {
-  pr: PRIdentifier;
-  threadId: string;
 }

@@ -11,7 +11,7 @@
   "keywords": ["github", "cli", "extension", "pull-request", "review"],
   "license": "MIT",
   "devDependencies": {
-    "@types/bun": "latest",
+    "@types/bun": "^1.3.9",
     "typescript": "^5.7.0"
   }
 }

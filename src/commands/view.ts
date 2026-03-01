@@ -1,15 +1,16 @@
+import { graphql } from "../gh";
+import { REVIEWS_AND_THREADS_QUERY, THREAD_COMMENTS_QUERY } from "../graphql/queries";
 import type {
+  GQLPageInfo,
   GQLPullRequest,
   GQLReview,
+  GQLReviewComment,
   GQLReviewThread,
   Review,
   ReviewComment,
   ReviewReport,
-  ReviewState,
   ThreadComment,
 } from "../types";
-import { graphql } from "../gh";
-import { REVIEWS_AND_THREADS_QUERY } from "../graphql/queries";
 import type { ParsedArgs } from "../utils";
 import { exitWithError, outputJSON, parseStates, resolvePR } from "../utils";
 
@@ -17,6 +18,48 @@ interface QueryResult {
   repository: {
     pullRequest: GQLPullRequest;
   };
+}
+
+interface ThreadCommentsResult {
+  node: {
+    comments: {
+      nodes: GQLReviewComment[];
+      pageInfo: GQLPageInfo;
+    };
+  };
+}
+
+/**
+ * Filter each review's comments by a predicate, then remove reviews with no remaining comments.
+ */
+function filterComments(reviews: Review[], predicate: (c: ReviewComment) => boolean): Review[] {
+  for (const review of reviews) {
+    review.comments = review.comments.filter(predicate);
+  }
+  return reviews.filter((r) => r.comments.length > 0);
+}
+
+/**
+ * Fetch remaining comment pages for threads that have >100 comments.
+ */
+function fetchRemainingComments(threads: GQLReviewThread[]): void {
+  for (const thread of threads) {
+    const pageInfo = thread.comments.pageInfo;
+    if (!pageInfo?.hasNextPage || !pageInfo.endCursor) continue;
+
+    let cursor: string | null = pageInfo.endCursor;
+    while (cursor) {
+      const data: ThreadCommentsResult = graphql<ThreadCommentsResult>(THREAD_COMMENTS_QUERY, {
+        threadId: thread.id,
+        cursor,
+      });
+
+      thread.comments.nodes.push(...data.node.comments.nodes);
+
+      const next = data.node.comments.pageInfo;
+      cursor = next.hasNextPage && next.endCursor ? next.endCursor : null;
+    }
+  }
 }
 
 /**
@@ -41,6 +84,10 @@ export function viewCommand(args: ParsedArgs): void {
         repo: pr.repo,
         number: pr.number,
       };
+      // Only pass cursors for sides that still need pages.
+      // When a side is done (hasMore*=false), we pass its last endCursor
+      // so the API returns an empty page for that side rather than
+      // re-fetching the first page.
       if (reviewsCursor) variables.reviewsCursor = reviewsCursor;
       if (threadsCursor) variables.threadsCursor = threadsCursor;
 
@@ -59,6 +106,9 @@ export function viewCommand(args: ParsedArgs): void {
         threadsCursor = pullRequest.reviewThreads.pageInfo.endCursor;
       }
     }
+
+    // Fetch remaining comments for threads with >100 comments
+    fetchRemainingComments(allThreads);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Failed to fetch reviews";
     exitWithError(message);
@@ -130,30 +180,22 @@ export function viewCommand(args: ParsedArgs): void {
   // --states <APPROVED,CHANGES_REQUESTED,...>
   const statesFlag = args.flags["states"];
   if (statesFlag) {
-    let states: ReviewState[];
     try {
-      states = parseStates(statesFlag);
+      const states = parseStates(statesFlag);
+      reviews = reviews.filter((r) => states.includes(r.state));
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Invalid states";
-      exitWithError(message);
+      exitWithError(err instanceof Error ? err.message : "Invalid states");
     }
-    reviews = reviews.filter((r) => states.includes(r.state));
   }
 
-  // --unresolved: remove resolved comments, then remove reviews with no comments
+  // --unresolved: remove resolved comments, then drop empty reviews
   if (args.flags["unresolved"] !== undefined) {
-    for (const review of reviews) {
-      review.comments = review.comments.filter((c) => !c.is_resolved);
-    }
-    reviews = reviews.filter((r) => r.comments.length > 0);
+    reviews = filterComments(reviews, (c) => !c.is_resolved);
   }
 
-  // --not-outdated: remove outdated comments, then remove reviews with no comments
+  // --not-outdated: remove outdated comments, then drop empty reviews
   if (args.flags["not-outdated"] !== undefined) {
-    for (const review of reviews) {
-      review.comments = review.comments.filter((c) => !c.is_outdated);
-    }
-    reviews = reviews.filter((r) => r.comments.length > 0);
+    reviews = filterComments(reviews, (c) => !c.is_outdated);
   }
 
   // --tail <n>: keep only the last n thread_comments per comment
