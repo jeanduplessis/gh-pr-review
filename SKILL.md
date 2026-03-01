@@ -1,3 +1,8 @@
+---
+name: gh-pr-review
+description: Read and respond to GitHub PR review comments. Use this skill when working with pull request reviews, replying to review threads, resolving review comments, or checking unresolved feedback on a PR.
+---
+
 # gh-pr-review
 
 ## Description
