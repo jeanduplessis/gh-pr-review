@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "bun run src/index.ts",
     "build": "bash script/build.sh",
+    "test": "bun test",
     "typecheck": "bun run tsc --noEmit"
   },
   "keywords": ["github", "cli", "extension", "pull-request", "review"],

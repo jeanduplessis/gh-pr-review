@@ -58,7 +58,12 @@ export interface GQLPullRequest {
 
 // === Output Types (what we emit as JSON) ===
 
-export type ReviewState = "APPROVED" | "CHANGES_REQUESTED" | "COMMENTED" | "DISMISSED" | "PENDING";
+export type ReviewState =
+  | "APPROVED"
+  | "CHANGES_REQUESTED"
+  | "COMMENTED"
+  | "DISMISSED"
+  | "PENDING";
 
 export interface ThreadComment {
   author_login: string;
@@ -91,8 +96,12 @@ export interface ReviewReport {
   reviews: Review[];
 }
 
-export interface ReplyMinimal {
+export type ReviewCommentState = "PENDING" | "SUBMITTED";
+
+export interface ReplyResult {
   comment_node_id: string;
+  comment_database_id: number;
+  state: "SUBMITTED";
 }
 
 export interface ThreadSummary {

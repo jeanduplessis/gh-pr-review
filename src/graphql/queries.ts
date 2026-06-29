@@ -94,6 +94,36 @@ query($threadId: ID!, $cursor: String!) {
 }
 `;
 
+/** Resolve a review thread node ID to its root review comment database ID. */
+export const THREAD_ROOT_COMMENT_QUERY = `
+query($threadId: ID!) {
+  node(id: $threadId) {
+    __typename
+    ... on PullRequestReviewThread {
+      comments(first: 1) {
+        nodes {
+          databaseId
+        }
+      }
+    }
+  }
+}
+`;
+
+/** Fetch authoritative comment-level publication state for a review comment. */
+export const COMMENT_PUBLICATION_QUERY = `
+query($commentId: ID!) {
+  node(id: $commentId) {
+    __typename
+    ... on PullRequestReviewComment {
+      id
+      databaseId
+      state
+    }
+  }
+}
+`;
+
 /**
  * Query to fetch only review threads for a pull request.
  * Used by the `threads` command.

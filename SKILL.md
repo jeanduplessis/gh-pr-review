@@ -38,7 +38,7 @@ gh pr-review reply [<pr-url>] [-R owner/repo] [--pr <number>]
     --body <text>
 ```
 
-Posts a reply to a review thread. Returns `{ "comment_node_id": "PRRC_..." }`.
+Posts and immediately publishes a reply through GitHub's REST reply endpoint. Success requires comment-level state `SUBMITTED` and returns `{ "comment_node_id": "PRRC_...", "comment_database_id": 123456, "state": "SUBMITTED" }`. Any other state is an error; reply does not resolve the thread.
 
 ### List threads
 
@@ -83,7 +83,8 @@ Unresolves a review thread. Returns `{ "thread_node_id": "PRRT_...", "is_resolve
 - Use `--unresolved --not-outdated` to focus on actionable feedback
 - Use `--tail 3` to see only recent discussion in long threads
 - After making code changes, reply to threads explaining what was done
-- Resolve threads only after the feedback has been addressed
+- Treat reply success as published only when returned `state` is `SUBMITTED`
+- Resolve threads only after the feedback has been addressed; reply never resolves automatically
 - Use `--states CHANGES_REQUESTED` to prioritize blocking reviews
 
 ## Output format

@@ -5,7 +5,7 @@ A GitHub CLI extension for reading and responding to PR review comments. Built f
 ## Features
 
 - **View reviews** with inline comments and full thread history
-- **Reply to threads** directly from the command line
+- **Reply to threads** with immediate publication verified at comment level
 - **List threads** with resolution and outdated status filters
 - **Resolve/unresolve threads** after addressing feedback
 - **JSON output** designed for programmatic consumption
@@ -55,6 +55,18 @@ gh pr-review threads --pr 42 --unresolved
 ```bash
 gh pr-review reply --pr 42 --thread-id PRRT_... --body "Fixed in latest commit"
 ```
+
+Replies use GitHub's REST thread-reply endpoint so they publish immediately without shared pending-review state. Success is reported only after GraphQL confirms comment-level state `SUBMITTED`:
+
+```json
+{
+  "comment_node_id": "PRRC_...",
+  "comment_database_id": 123456,
+  "state": "SUBMITTED"
+}
+```
+
+The reply command does not resolve the thread.
 
 ### Resolve / unresolve a thread
 
@@ -112,7 +124,7 @@ bun run typecheck
 ## Architecture
 
 - **TypeScript** compiled to standalone binaries with `bun build --compile`
-- **GraphQL-only** API interaction via `gh api graphql`
+- **GitHub API via `gh`** — GraphQL for reads/mutations and REST for immediately published replies
 - **Zero dependencies** — no npm packages, no token management
 - **Hand-rolled arg parser** — minimal, no external CLI framework
 

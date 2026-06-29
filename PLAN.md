@@ -4,7 +4,7 @@ A GitHub CLI extension built in TypeScript, focused exclusively on **reading and
 
 ## Overview
 
-This extension provides coding agents with structured JSON access to PR review threads — view comments, reply to feedback, and resolve threads — without the noise of the full GitHub API. It is compiled to standalone binaries using `bun build --compile` and interacts with the GitHub API by shelling out to `gh api graphql`.
+This extension provides coding agents with structured JSON access to PR review threads — view comments, reply to feedback, and resolve threads — without the noise of the full GitHub API. It is compiled to standalone binaries using `bun build --compile` and interacts with the GitHub API by shelling out to `gh api`.
 
 Inspired by [agynio/gh-pr-review](https://github.com/agynio/gh-pr-review) (Go), but scoped down to the read-and-respond workflow and rewritten in TypeScript.
 
@@ -24,7 +24,7 @@ Inspired by [agynio/gh-pr-review](https://github.com/agynio/gh-pr-review) (Go), 
 
 - Review creation (`review --start`, `--add-comment`, `--submit`)
 - Human-readable / interactive output
-- REST API fallbacks
+- REST API use outside the reply endpoint required for immediate publication
 
 ## Command API
 
@@ -98,13 +98,17 @@ gh pr-review unresolve [<pr-url>] [-R owner/repo] [--pr <number>]
 }
 ```
 
-### ReplyMinimal (from `reply`)
+### ReplyResult (from `reply`)
 
 ```json
 {
-  "comment_node_id": "PRRC_..."
+  "comment_node_id": "PRRC_...",
+  "comment_database_id": 123456,
+  "state": "SUBMITTED"
 }
 ```
+
+Replies use GitHub's REST review-comment reply endpoint and report success only after GraphQL confirms comment-level state `SUBMITTED`.
 
 ### ThreadSummary[] (from `threads`)
 
@@ -146,7 +150,7 @@ gh-pr-review/
 │   ├── graphql/
 │   │   ├── queries.ts        # GraphQL query strings
 │   │   └── mutations.ts      # GraphQL mutation strings
-│   ├── gh.ts                 # gh api graphql wrapper (child_process)
+│   ├── gh.ts                 # gh api GraphQL/REST wrapper (child_process)
 │   ├── types.ts              # TypeScript interfaces for all schemas
 │   └── utils.ts              # Shared utilities (arg parsing, error handling)
 ├── script/
@@ -166,7 +170,7 @@ gh-pr-review/
 
 1. **Argument parsing** — Minimal hand-rolled parser operating on `process.argv`. No external dependency (commander, yargs, etc.). Keeps the binary small and avoids needless deps.
 
-2. **GitHub API interaction** — Shell out to `gh api graphql -f query=... -F variables=...` via `child_process.execFileSync`. This inherits `gh` authentication automatically — no token management needed. All commands use GraphQL exclusively (no REST).
+2. **GitHub API interaction** — Shell out to `gh api` via `child_process.execFileSync`. This inherits `gh` authentication automatically. Reads and thread mutations use GraphQL; replies use the REST review-comment reply endpoint so they publish immediately, then GraphQL verifies comment-level state `SUBMITTED`.
 
 3. **Build toolchain** — `bun build --compile` with cross-compilation:
    - `bun-darwin-arm64` (macOS Apple Silicon)
@@ -191,19 +195,19 @@ gh-pr-review/
 
 ### Phase 2: Core infrastructure
 
-- `src/gh.ts` — wrapper to call `gh api graphql`, parse JSON response, handle errors
+- `src/gh.ts` — wrapper to call `gh api` GraphQL/REST endpoints, parse JSON responses, handle errors
 - `src/types.ts` — TypeScript interfaces matching the output schemas
 - `src/utils.ts` — argument parser, PR URL/number resolver, error formatter, JSON output helper
 
 ### Phase 3: GraphQL
 
 - `src/graphql/queries.ts` — queries for `view` (reviews + comments + thread replies) and `threads` (thread list)
-- `src/graphql/mutations.ts` — mutations for `reply` (addPullRequestReviewThreadReply), `resolve` (resolveReviewThread), `unresolve` (unresolveReviewThread)
+- `src/graphql/mutations.ts` — mutations for `resolve` (resolveReviewThread) and `unresolve` (unresolveReviewThread)
 
 ### Phase 4: Commands
 
 - `src/commands/view.ts` — fetch reviews, apply client-side filters (reviewer, states, unresolved, not-outdated, tail), output ReviewReport
-- `src/commands/reply.ts` — mutation to reply to a thread, output ReplyMinimal
+- `src/commands/reply.ts` — resolve thread root comment, reply through REST, verify `SUBMITTED`, output ReplyResult
 - `src/commands/threads.ts` — fetch thread list with optional unresolved filter, output ThreadSummary[]
 - `src/commands/resolve.ts` — mutation to resolve a thread, output ThreadMutationResult
 - `src/commands/unresolve.ts` — mutation to unresolve a thread, output ThreadMutationResult
@@ -230,7 +234,7 @@ gh-pr-review/
 | Scope | Full review lifecycle | Read + reply only |
 | Commands | 7+ subcommands with nested flags | 5 focused commands |
 | Review creation | Yes (start, add-comment, submit) | No |
-| API layer | go-gh library | Shell out to `gh api graphql` |
+| API layer | go-gh library | Shell out to `gh api` |
 | Build | Go cross-compile | Bun compile |
 | Runtime deps | None (Go binary) | None (Bun standalone binary) |
 | Binary size | ~10MB | ~50MB (Bun runtime embedded) |
